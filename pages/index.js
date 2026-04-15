@@ -1,0 +1,849 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/router';
+import { useAuth } from '../contexts/AuthContext';
+import { Search, Download, Upload, RefreshCw, Plus, X, Calendar, User, Package, DollarSign, Image as ImageIcon, History, Settings, FileText, MapPin, LogOut } from 'lucide-react';
+
+const FurniturePurchaseSystem = () => {
+  const router = useRouter();
+  const { user, userRole, loading: authLoading, signOut } = useAuth();
+
+  // 認証チェック
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, authLoading, router]);
+
+  // ログアウト処理
+  const handleSignOut = async () => {
+    if (confirm('ログアウトしますか？')) {
+      await signOut();
+      router.push('/login');
+    }
+  };
+
+  // 認証中は何も表示しない
+  if (authLoading || !user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 flex items-center justify-center">
+        <div className="text-center">
+          <Package className="w-16 h-16 text-amber-600 mx-auto mb-4 animate-pulse" />
+          <p className="text-lg font-semibold text-gray-700">読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ステータス定義
+  const STATUSES = {
+    pending: { label: '未対応', color: 'bg-amber-100 text-amber-800 border-amber-300' },
+    inProgress: { label: '対応中', color: 'bg-blue-100 text-blue-800 border-blue-300' },
+    proposed: { label: '提案中', color: 'bg-purple-100 text-purple-800 border-purple-300' },
+    completed: { label: '完了', color: 'bg-emerald-100 text-emerald-800 border-emerald-300' }
+  };
+
+  // カテゴリ定義（実際のCSVから）
+  const CATEGORIES = ['ソファ', 'ラウンジチェア', 'ベッド', 'テーブル', 'チェア', 'デスク', '収納家具', 'その他'];
+  
+  // 担当者リスト
+  const STAFF = ['未割当', '山田', '佐藤', '鈴木', '田中'];
+  
+  // ファイルアップロード用ref
+  const fileInputRef = useRef(null);
+
+  // State管理
+  const [purchases, setPurchases] = useState([]);
+  const [filteredPurchases, setFilteredPurchases] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [selectedPurchase, setSelectedPurchase] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
+  const [sheetsUrl, setSheetsUrl] = useState('');
+
+  // データ読み込み
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  // フィルタリング
+  useEffect(() => {
+    let filtered = purchases;
+
+    if (searchTerm) {
+      filtered = filtered.filter(p => 
+        p.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.productName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.id?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(p => p.status === filterStatus);
+    }
+
+    if (filterCategory !== 'all') {
+      filtered = filtered.filter(p => p.category === filterCategory);
+    }
+
+    setFilteredPurchases(filtered);
+  }, [purchases, searchTerm, filterStatus, filterCategory]);
+
+  // データ読み込み
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const result = await window.storage.get('purchases');
+      if (result && result.value) {
+        setPurchases(JSON.parse(result.value));
+      } else {
+        // 初期サンプルデータ（実際のCSV構造に準拠）
+        const sampleData = [
+          {
+            id: 'P001',
+            timestamp: '2026-04-15 10:30',
+            customerName: '加納 大介',
+            lineUserId: 'U61f69609bdbdd22b5a426cb16e56d433',
+            lineName: 'kano',
+            prefecture: '東京都',
+            productName: 'ソファ - 匠ソファ LBワンアームカウチW1300',
+            category: 'ソファ',
+            brand: 'その他',
+            purchaseYear: '1〜3年',
+            condition: '目立った傷・汚れなし',
+            photos: ['https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400'],
+            status: 'pending',
+            assignedTo: '未割当',
+            estimatedPrice: null,
+            approved: false,
+            notes: '匠ソファ　LBワンアームカウチW1300',
+            history: [
+              { timestamp: '2026-04-15 10:30', action: '新規依頼受付', user: 'システム' }
+            ]
+          },
+          {
+            id: 'P002',
+            timestamp: '2026-04-15 09:15',
+            customerName: '佐藤映信',
+            lineUserId: 'U3cd6fe334b81d97dda9ea9e0068f37a0',
+            lineName: '佐藤映信/エイジン/A.Sato',
+            prefecture: '福島県',
+            productName: 'ソファ - by interiors SLED LOUNGE',
+            category: 'ソファ',
+            brand: 'その他',
+            purchaseYear: '1〜3年',
+            condition: '小さな傷・使用感あり',
+            photos: [
+              'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400',
+              'https://images.unsplash.com/photo-1493663284031-b7e3aefcae8e?w=400'
+            ],
+            status: 'inProgress',
+            assignedTo: '山田',
+            estimatedPrice: null,
+            approved: false,
+            notes: 'デザイナーは津福達朗により設計されたこのソファは、同シリーズの「SLEDチェア」のプロポーションを継承し、ミニマルで洗練されたフォルムが特徴。',
+            history: [
+              { timestamp: '2026-04-15 09:15', action: '新規依頼受付', user: 'システム' },
+              { timestamp: '2026-04-15 11:00', action: '担当者割当: 山田', user: '管理者' }
+            ]
+          },
+          {
+            id: 'P003',
+            timestamp: '2026-04-14 15:20',
+            customerName: '小宮萌',
+            lineUserId: 'U3bda2fc616fc688cb845650b7bde8f6c',
+            lineName: 'moe futamura',
+            prefecture: '東京都',
+            productName: 'ベッド - シモンズ ケンドリック',
+            category: 'ベッド',
+            brand: 'その他',
+            purchaseYear: '5年以上',
+            condition: '目立った傷・汚れなし',
+            photos: [
+              'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=400',
+              'https://images.unsplash.com/photo-1578898886615-9b3e9f1e8e1f?w=400'
+            ],
+            status: 'proposed',
+            assignedTo: '佐藤',
+            estimatedPrice: 45000,
+            approved: false,
+            notes: 'シモンズで購入しました。ケンドリック、収納付きベッド、クイーン、ダークブラウン、サイドチェスト?あり',
+            history: [
+              { timestamp: '2026-04-14 15:20', action: '新規依頼受付', user: 'システム' },
+              { timestamp: '2026-04-14 16:00', action: '担当者割当: 佐藤', user: '管理者' },
+              { timestamp: '2026-04-15 10:00', action: '査定完了: ¥45,000', user: '佐藤' }
+            ]
+          }
+        ];
+        setPurchases(sampleData);
+        await saveData(sampleData);
+      }
+
+      // Google Sheets URL読み込み
+      const urlResult = await window.storage.get('sheets-url');
+      if (urlResult && urlResult.value) {
+        setSheetsUrl(urlResult.value);
+      }
+    } catch (error) {
+      console.error('データ読み込みエラー:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // データ保存
+  const saveData = async (data) => {
+    try {
+      await window.storage.set('purchases', JSON.stringify(data));
+    } catch (error) {
+      console.error('データ保存エラー:', error);
+      alert('データの保存に失敗しました');
+    }
+  };
+
+  // 購入依頼更新
+  const updatePurchase = async (id, updates, actionDescription) => {
+    const updatedPurchases = purchases.map(p => {
+      if (p.id === id) {
+        const newHistory = [
+          ...p.history,
+          {
+            timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+            action: actionDescription,
+            user: '管理者' // 本番では認証ユーザー名
+          }
+        ];
+
+        // ステータス自動更新ロジック
+        let newStatus = p.status;
+        if (updates.assignedTo && updates.assignedTo !== '未割当' && p.status === 'pending') {
+          newStatus = 'inProgress';
+        }
+        if (updates.estimatedPrice !== null && updates.estimatedPrice !== undefined && p.status === 'inProgress') {
+          newStatus = 'proposed';
+        }
+        if (updates.approved && p.status === 'proposed') {
+          newStatus = 'completed';
+        }
+
+        return {
+          ...p,
+          ...updates,
+          status: newStatus,
+          history: newHistory
+        };
+      }
+      return p;
+    });
+
+    setPurchases(updatedPurchases);
+    await saveData(updatedPurchases);
+  };
+
+  // CSVエクスポート
+  const exportToCSV = () => {
+    const headers = ['依頼ID', '受付日時', 'お客様名', '商品名', 'カテゴリ', '状態', 'ステータス', '担当者', '査定金額', '承認'];
+    const rows = purchases.map(p => [
+      p.id,
+      p.timestamp,
+      p.customerName,
+      p.productName,
+      p.category,
+      p.condition,
+      STATUSES[p.status].label,
+      p.assignedTo,
+      p.estimatedPrice || '',
+      p.approved ? '承認済' : '未承認'
+    ]);
+
+    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `買取データ_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  };
+
+  // Google Sheets同期（デモ版）
+  const syncFromSheets = async () => {
+    if (!sheetsUrl) {
+      alert('設定でGoogle SheetsのURLを入力してください');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // 本番ではGoogle Sheets APIを使用
+      alert('Google Sheets APIと連携します。\n※本実装時にAPIキーを設定して実装します。');
+      // const response = await fetch(sheetsApiUrl);
+      // const data = await response.json();
+      // process and update purchases
+    } catch (error) {
+      console.error('同期エラー:', error);
+      alert('Google Sheetsとの同期に失敗しました');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // バックアップ作成
+  const createBackup = async () => {
+    const backup = {
+      timestamp: new Date().toISOString(),
+      data: purchases
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `バックアップ_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+  };
+
+  // CSV読み込み
+  const handleCSVUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setIsLoading(true);
+    try {
+      const text = await file.text();
+      const lines = text.split('\n');
+      const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+      
+      const newPurchases = [];
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
+        
+        // CSVパース（簡易版 - 本番ではpapaparseなど使用推奨）
+        const values = [];
+        let current = '';
+        let inQuotes = false;
+        
+        for (let char of lines[i]) {
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            values.push(current.trim());
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        values.push(current.trim());
+
+        // 写真URLを収集（13-17列目）
+        const photos = [];
+        for (let j = 12; j <= 16; j++) {
+          if (values[j] && values[j].startsWith('http')) {
+            photos.push(values[j]);
+          }
+        }
+
+        // データ変換
+        const purchase = {
+          id: `P${String(newPurchases.length + purchases.length + 1).padStart(4, '0')}`,
+          timestamp: values[2] || new Date().toISOString().replace('T', ' ').substring(0, 16),
+          customerName: values[6] || '不明',
+          lineUserId: values[0],
+          lineName: values[4],
+          prefecture: values[7] || '',
+          productName: `${values[8] || '家具'} - ${values[9] || ''}`.trim(),
+          category: values[8] || 'その他',
+          brand: values[9] || 'その他',
+          purchaseYear: values[10] || '',
+          condition: values[11] || '',
+          photos: photos,
+          notes: values[17] || '',
+          status: 'pending',
+          assignedTo: '未割当',
+          estimatedPrice: null,
+          approved: false,
+          history: [
+            { 
+              timestamp: values[2] || new Date().toISOString().replace('T', ' ').substring(0, 16), 
+              action: 'CSV読み込みによる新規依頼受付', 
+              user: 'システム' 
+            }
+          ]
+        };
+
+        newPurchases.push(purchase);
+      }
+
+      // 既存データと結合
+      const allPurchases = [...purchases, ...newPurchases];
+      setPurchases(allPurchases);
+      await saveData(allPurchases);
+      
+      alert(`${newPurchases.length}件のデータを読み込みました`);
+    } catch (error) {
+      console.error('CSV読み込みエラー:', error);
+      alert('CSVの読み込みに失敗しました。ファイル形式を確認してください。');
+    } finally {
+      setIsLoading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // ステータス別の件数を計算
+  const statusCounts = Object.keys(STATUSES).reduce((acc, status) => {
+    acc[status] = purchases.filter(p => p.status === status).length;
+    return acc;
+  }, {});
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50">
+      {/* ヘッダー */}
+      <header className="bg-gradient-to-r from-amber-900 via-orange-900 to-amber-800 text-white shadow-xl border-b-4 border-amber-700">
+        <div className="container mx-auto px-6 py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center shadow-lg">
+                <Package className="w-7 h-7 text-amber-900" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight">家具買取管理システム</h1>
+                <p className="text-amber-200 text-sm mt-1">Furniture Purchase Management</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              {/* ユーザー情報 */}
+              <div className="hidden md:flex items-center space-x-2 bg-white/10 px-4 py-2 rounded-lg backdrop-blur-sm border border-white/20">
+                <User className="w-4 h-4" />
+                <div className="text-sm">
+                  <p className="font-medium">{user?.email}</p>
+                  <p className="text-xs text-amber-200">
+                    {userRole === 'master' ? 'マスター' : 
+                     userRole === 'admin' ? '管理者' : 
+                     userRole === 'staff' ? '査定員' : '閲覧者'}
+                  </p>
+                </div>
+              </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                onChange={handleCSVUpload}
+                className="hidden"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center space-x-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg transition-all backdrop-blur-sm border border-white/20"
+              >
+                <Upload className="w-4 h-4" />
+                <span className="text-sm font-medium">CSV取込</span>
+              </button>
+              <button
+                onClick={syncFromSheets}
+                className="flex items-center space-x-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg transition-all backdrop-blur-sm border border-white/20"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span className="text-sm font-medium">同期</span>
+              </button>
+              <button
+                onClick={exportToCSV}
+                className="flex items-center space-x-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg transition-all backdrop-blur-sm border border-white/20"
+              >
+                <Download className="w-4 h-4" />
+                <span className="text-sm font-medium">エクスポート</span>
+              </button>
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="flex items-center space-x-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg transition-all backdrop-blur-sm border border-white/20"
+              >
+                <Settings className="w-4 h-4" />
+                <span className="text-sm font-medium">設定</span>
+              </button>
+              <button
+                onClick={handleSignOut}
+                className="flex items-center space-x-2 bg-red-500/20 hover:bg-red-500/30 px-4 py-2 rounded-lg transition-all backdrop-blur-sm border border-red-300/30"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="text-sm font-medium">ログアウト</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 設定パネル */}
+          {showSettings && (
+            <div className="mt-4 bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
+              <h3 className="text-lg font-semibold mb-4">Google Sheets連携設定</h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium mb-2">スプレッドシートURL</label>
+                  <input
+                    type="text"
+                    value={sheetsUrl}
+                    onChange={(e) => setSheetsUrl(e.target.value)}
+                    placeholder="https://docs.google.com/spreadsheets/d/..."
+                    className="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/50"
+                  />
+                </div>
+                <button
+                  onClick={async () => {
+                    await window.storage.set('sheets-url', sheetsUrl);
+                    alert('設定を保存しました');
+                    setShowSettings(false);
+                  }}
+                  className="bg-white text-amber-900 px-6 py-2 rounded-lg font-semibold hover:bg-amber-100 transition-colors"
+                >
+                  保存
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* ステータスサマリー */}
+      <div className="container mx-auto px-6 py-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          {Object.entries(STATUSES).map(([key, status]) => (
+            <div
+              key={key}
+              className="bg-white rounded-2xl p-6 shadow-lg border-2 border-amber-100 hover:shadow-xl transition-all cursor-pointer hover:scale-105"
+              onClick={() => setFilterStatus(filterStatus === key ? 'all' : key)}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">{status.label}</p>
+                  <p className="text-4xl font-bold text-amber-900 mt-2">{statusCounts[key]}</p>
+                </div>
+                <div className={`w-16 h-16 rounded-2xl ${status.color.split(' ')[0]} flex items-center justify-center`}>
+                  <Package className={`w-8 h-8 ${status.color.split(' ')[1]}`} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* 検索・フィルター */}
+        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8 border-2 border-amber-100">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="お客様名、商品名、IDで検索..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              />
+            </div>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            >
+              <option value="all">全てのステータス</option>
+              {Object.entries(STATUSES).map(([key, status]) => (
+                <option key={key} value={key}>{status.label}</option>
+              ))}
+            </select>
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            >
+              <option value="all">全てのカテゴリ</option>
+              {CATEGORIES.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* カンバンボード */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {Object.entries(STATUSES).map(([statusKey, status]) => {
+            const statusPurchases = filteredPurchases.filter(p => p.status === statusKey);
+            
+            return (
+              <div key={statusKey} className="bg-white/50 backdrop-blur-sm rounded-2xl p-4 border-2 border-amber-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-gray-800">{status.label}</h3>
+                  <span className="text-sm font-semibold text-gray-600 bg-amber-100 px-3 py-1 rounded-full">
+                    {statusPurchases.length}
+                  </span>
+                </div>
+                
+                <div className="space-y-3">
+                  {statusPurchases.map(purchase => (
+                    <div
+                      key={purchase.id}
+                      onClick={() => setSelectedPurchase(purchase)}
+                      className="bg-white rounded-xl p-4 shadow-md hover:shadow-xl transition-all cursor-pointer border-2 border-transparent hover:border-amber-400"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <p className="text-xs font-semibold text-amber-600 mb-1">{purchase.id}</p>
+                          <h4 className="font-bold text-gray-900 text-sm mb-1">{purchase.productName}</h4>
+                          <p className="text-xs text-gray-600">{purchase.customerName}</p>
+                        </div>
+                        {purchase.photos && purchase.photos.length > 0 && (
+                          <img
+                            src={purchase.photos[0]}
+                            alt={purchase.productName}
+                            className="w-12 h-12 rounded-lg object-cover ml-2"
+                          />
+                        )}
+                      </div>
+                      
+                      <div className="flex items-center justify-between text-xs text-gray-600 mt-3 pt-3 border-t border-gray-200">
+                        <span className="flex items-center">
+                          <Calendar className="w-3 h-3 mr-1" />
+                          {purchase.timestamp.split(' ')[0]}
+                        </span>
+                        <span className="flex items-center">
+                          <User className="w-3 h-3 mr-1" />
+                          {purchase.assignedTo}
+                        </span>
+                      </div>
+                      
+                      {purchase.estimatedPrice && (
+                        <div className="mt-2 pt-2 border-t border-gray-200">
+                          <p className="text-sm font-bold text-amber-700 flex items-center">
+                            <DollarSign className="w-4 h-4 mr-1" />
+                            ¥{purchase.estimatedPrice.toLocaleString()}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  
+                  {statusPurchases.length === 0 && (
+                    <div className="text-center py-8 text-gray-400 text-sm">
+                      該当する依頼がありません
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 詳細モーダル */}
+      {selectedPurchase && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="sticky top-0 bg-gradient-to-r from-amber-900 to-orange-900 text-white p-6 rounded-t-3xl">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold">依頼詳細</h2>
+                <button
+                  onClick={() => setSelectedPurchase(null)}
+                  className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* 基本情報 */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 uppercase">依頼ID</label>
+                  <p className="text-lg font-bold text-amber-900 mt-1">{selectedPurchase.id}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 uppercase">受付日時</label>
+                  <p className="text-lg font-bold text-gray-900 mt-1">{selectedPurchase.timestamp}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 uppercase">お客様名</label>
+                  <p className="text-lg font-bold text-gray-900 mt-1">{selectedPurchase.customerName}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 uppercase">都道府県</label>
+                  <p className="text-lg font-bold text-gray-900 mt-1 flex items-center">
+                    <MapPin className="w-4 h-4 mr-1 text-amber-600" />
+                    {selectedPurchase.prefecture || '未登録'}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 uppercase">LINE名</label>
+                  <p className="text-base text-gray-700 mt-1">{selectedPurchase.lineName || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 uppercase">ステータス</label>
+                  <p className={`inline-block px-4 py-2 rounded-lg text-sm font-bold mt-1 ${STATUSES[selectedPurchase.status].color}`}>
+                    {STATUSES[selectedPurchase.status].label}
+                  </p>
+                </div>
+              </div>
+
+              {/* 商品情報 */}
+              <div className="bg-amber-50 rounded-2xl p-6 border-2 border-amber-200">
+                <h3 className="text-lg font-bold text-gray-900 mb-4">商品情報</h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 uppercase">商品名</label>
+                    <p className="text-base font-semibold text-gray-900 mt-1">{selectedPurchase.productName}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 uppercase">カテゴリ</label>
+                      <p className="text-base text-gray-900 mt-1">{selectedPurchase.category}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 uppercase">ブランド</label>
+                      <p className="text-base text-gray-900 mt-1">{selectedPurchase.brand || 'その他'}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 uppercase">購入時期・使用年数</label>
+                      <p className="text-base text-gray-900 mt-1">{selectedPurchase.purchaseYear || '-'}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 uppercase">商品の状態</label>
+                      <p className="text-base text-gray-900 mt-1">{selectedPurchase.condition}</p>
+                    </div>
+                  </div>
+                  {selectedPurchase.notes && (
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 uppercase">備考・詳細</label>
+                      <p className="text-base text-gray-700 mt-1 whitespace-pre-wrap">{selectedPurchase.notes}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 商品写真 */}
+              {selectedPurchase.photos && selectedPurchase.photos.length > 0 && (
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 uppercase mb-3 block">
+                    商品写真（{selectedPurchase.photos.length}枚）
+                  </label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {selectedPurchase.photos.map((photo, idx) => (
+                      <div key={idx} className="relative group">
+                        <img
+                          src={photo}
+                          alt={`商品写真 ${idx + 1}`}
+                          className="w-full h-40 object-cover rounded-xl border-2 border-amber-200 group-hover:border-amber-400 transition-all cursor-pointer"
+                          onClick={() => window.open(photo, '_blank')}
+                        />
+                        <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
+                          {idx + 1}/{selectedPurchase.photos.length}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">※ 画像をクリックすると拡大表示されます</p>
+                </div>
+              )}
+
+              {/* 査定情報 */}
+              <div className="bg-blue-50 rounded-2xl p-6 border-2 border-blue-200">
+                <h3 className="text-lg font-bold text-gray-900 mb-4">査定情報</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 uppercase block mb-2">担当者</label>
+                    <select
+                      value={selectedPurchase.assignedTo}
+                      onChange={(e) => {
+                        updatePurchase(
+                          selectedPurchase.id,
+                          { assignedTo: e.target.value },
+                          `担当者割当: ${e.target.value}`
+                        );
+                        setSelectedPurchase({ ...selectedPurchase, assignedTo: e.target.value });
+                      }}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
+                    >
+                      {STAFF.map(staff => (
+                        <option key={staff} value={staff}>{staff}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 uppercase block mb-2">査定金額（円）</label>
+                    <input
+                      type="number"
+                      value={selectedPurchase.estimatedPrice || ''}
+                      onChange={(e) => {
+                        const price = parseInt(e.target.value) || null;
+                        updatePurchase(
+                          selectedPurchase.id,
+                          { estimatedPrice: price },
+                          `査定完了: ¥${price?.toLocaleString() || 0}`
+                        );
+                        setSelectedPurchase({ ...selectedPurchase, estimatedPrice: price });
+                      }}
+                      placeholder="査定金額を入力"
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-lg"
+                    />
+                  </div>
+
+                  <div className="flex items-center space-x-3 pt-2">
+                    <input
+                      type="checkbox"
+                      id="approved"
+                      checked={selectedPurchase.approved}
+                      onChange={(e) => {
+                        updatePurchase(
+                          selectedPurchase.id,
+                          { approved: e.target.checked },
+                          e.target.checked ? '買取承認' : '承認取消'
+                        );
+                        setSelectedPurchase({ ...selectedPurchase, approved: e.target.checked });
+                      }}
+                      className="w-6 h-6 rounded border-2 border-gray-300 text-amber-600 focus:ring-2 focus:ring-amber-500"
+                    />
+                    <label htmlFor="approved" className="text-base font-semibold text-gray-900">
+                      買取承認
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* 履歴 */}
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                  <History className="w-5 h-5 mr-2" />
+                  変更履歴
+                </h3>
+                <div className="bg-gray-50 rounded-2xl p-4 border-2 border-gray-200">
+                  <div className="space-y-3">
+                    {selectedPurchase.history.map((entry, idx) => (
+                      <div key={idx} className="flex items-start space-x-3 text-sm">
+                        <div className="w-2 h-2 bg-amber-500 rounded-full mt-2"></div>
+                        <div className="flex-1">
+                          <p className="text-gray-900 font-medium">{entry.action}</p>
+                          <p className="text-gray-600 text-xs mt-1">
+                            {entry.timestamp} - {entry.user}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ローディング */}
+      {isLoading && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-8 shadow-2xl">
+            <div className="flex items-center space-x-3">
+              <RefreshCw className="w-6 h-6 animate-spin text-amber-600" />
+              <p className="text-lg font-semibold text-gray-900">読み込み中...</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default FurniturePurchaseSystem;
