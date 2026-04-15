@@ -430,9 +430,12 @@ const FurniturePurchaseSystem = () => {
         newPurchases.push(purchase);
       }
 
-      // Firestoreに保存
+      // 修正後
+      const savedPurchases = [];
       for (const purchase of newPurchases) {
-        await addDoc(collection(db, 'purchases'), purchase);
+      const docRef = await addDoc(collection(db, 'purchases'), purchase);
+      savedPurchases.push({ ...purchase, firestoreId: docRef.id });
+      // ← firestoreIdを正しく追加
       }
 
       // ローカルステート更新
