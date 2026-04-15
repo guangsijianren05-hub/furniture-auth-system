@@ -430,19 +430,18 @@ const FurniturePurchaseSystem = () => {
         newPurchases.push(purchase);
       }
 
-      // 修正後
+      // Firestoreに保存してfirestoreIdを取得
       const savedPurchases = [];
       for (const purchase of newPurchases) {
-      const docRef = await addDoc(collection(db, 'purchases'), purchase);
-      savedPurchases.push({ ...purchase, firestoreId: docRef.id });
-      // ← firestoreIdを正しく追加
+        const docRef = await addDoc(collection(db, 'purchases'), purchase);
+        savedPurchases.push({ ...purchase, firestoreId: docRef.id });
       }
 
       // ローカルステート更新
-      const allPurchases = [...purchases, ...newPurchases];
+      const allPurchases = [...purchases, ...savedPurchases];
       setPurchases(allPurchases);
       
-      alert(`${newPurchases.length}件のデータを読み込みました`);
+      alert(`${savedPurchases.length}件のデータを読み込みました`);
     } catch (error) {
       console.error('CSV読み込みエラー:', error);
       alert('CSVの読み込みに失敗しました。ファイル形式を確認してください。');
