@@ -532,16 +532,16 @@ const FurniturePurchaseSystem = () => {
       }
       alert(message);
 
-    } catch (error) {
-      console.error('CSV読み込みエラー:', error);
-      alert(`CSVの読み込みに失敗しました。\n\nエラー: ${error.message}\n\nファイル形式を確認してください。`);
-    } finally {
-      setIsLoading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+      } catch (error) {
+        console.error('CSV読み込みエラー:', error);
+        alert(`CSVの読み込みに失敗しました。\n\nエラー: ${error.message}\n\nファイル形式を確認してください。`);
+      } finally {
+        setIsLoading(false);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
       }
-    }
-  };
+    };
 
   // ステータス別の件数を計算
   const statusCounts = Object.keys(STATUSES).reduce((acc, status) => {
