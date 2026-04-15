@@ -18,18 +18,15 @@ const AdminPage = () => {
     name: ''
   });
 
-  // マスター権限チェック
   useEffect(() => {
     if (!loading && !user) {
       router.push('/login');
     } else if (user?.email !== 'kento.879301@gmail.com') {
-      // マスターユーザーのみアクセス可能
       alert('マスター権限が必要です');
       router.push('/');
     }
   }, [user, loading, router]);
 
-  // ユーザー一覧読み込み
   useEffect(() => {
     if (user) {
       loadUsers();
@@ -62,8 +59,6 @@ const AdminPage = () => {
     }
 
     try {
-      // Firebase Authenticationへの追加は別途必要
-      // ここではFirestoreにユーザー情報を保存
       await addDoc(collection(db, 'users'), {
         email: newUser.email,
         name: newUser.name,
@@ -126,7 +121,6 @@ const AdminPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50">
-      {/* ヘッダー */}
       <header className="bg-gradient-to-r from-amber-900 via-orange-900 to-amber-800 text-white shadow-xl border-b-4 border-amber-700">
         <div className="container mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
@@ -152,9 +146,7 @@ const AdminPage = () => {
         </div>
       </header>
 
-      {/* メインコンテンツ */}
       <div className="container mx-auto px-6 py-8">
-        {/* 統計カード */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-blue-200">
             <div className="flex items-center justify-between">
@@ -197,7 +189,6 @@ const AdminPage = () => {
           </div>
         </div>
 
-        {/* 新規ユーザー追加ボタン */}
         <div className="mb-6">
           <button
             onClick={() => setShowAddUser(!showAddUser)}
@@ -208,7 +199,6 @@ const AdminPage = () => {
           </button>
         </div>
 
-        {/* 新規ユーザーフォーム */}
         {showAddUser && (
           <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-blue-200 mb-8">
             <h2 className="text-xl font-bold text-gray-900 mb-4">新規ユーザー追加</h2>
@@ -298,7 +288,6 @@ const AdminPage = () => {
           </div>
         )}
 
-        {/* ユーザー一覧 */}
         <div className="bg-white rounded-2xl shadow-lg border-2 border-gray-200 overflow-hidden">
           <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b-2 border-gray-200">
             <h2 className="text-xl font-bold text-gray-900">ユーザー一覧</h2>
