@@ -433,8 +433,8 @@ const FurniturePurchaseSystem = () => {
       // Firestoreに保存してfirestoreIdを取得
       const savedPurchases = [];
       for (const purchase of newPurchases) {
-        const docRef = await addDoc(collection(db, 'purchases'), purchase);
-        savedPurchases.push({ ...purchase, firestoreId: docRef.id });
+      const docRef = await addDoc(collection(db, 'purchases'), purchase);
+      savedPurchases.push({ ...purchase, firestoreId: docRef.id });
       }
 
       // ローカルステート更新
