@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserRole } from '../lib/permissions';
-import { collection, getDocs, addDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { createUserWithEmailAndPassword, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
-import { User, UserPlus, Trash2, Shield, Mail, Key, ArrowLeft, Save, X } from 'lucide-react';
+import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { User, Trash2, Shield, Mail, Key, ArrowLeft, Save, X } from 'lucide-react';
 
 const MASTER_USERS = ['kento.879301@gmail.com'];
 
@@ -14,18 +14,11 @@ const AdminPage = () => {
   const { user, loading } = useAuth();
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showAddUser, setShowAddUser] = useState(false);
   const [editingPassword, setEditingPassword] = useState(null);
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: ''
-  });
-  const [newUser, setNewUser] = useState({
-    email: '',
-    password: '',
-    role: 'admin',
-    name: ''
   });
 
   const userRole = user ? getUserRole(user.email) : null;
@@ -74,61 +67,6 @@ const AdminPage = () => {
       alert('ユーザー情報の読み込みに失敗しました');
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleAddUser = async (e) => {
-    e.preventDefault();
-    
-    // アカウント作成権限チェック
-    if (userRole !== 'master' && userRole !== 'admin') {
-      alert('アカウント作成の権限がありません');
-      return;
-    }
-    
-    if (!newUser.email || !newUser.password) {
-      alert('メールアドレスとパスワードは必須です');
-      return;
-    }
-
-    // パスワードポリシーチェック
-    if (newUser.password.length < 8) {
-      alert('パスワードは8文字以上必要です');
-      return;
-    }
-
-    try {
-      // Firebase Authenticationにユーザーを作成
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        newUser.email,
-        newUser.password
-      );
-
-      // Firestoreにユーザー情報を保存
-      await addDoc(collection(db, 'users'), {
-        email: newUser.email,
-        name: newUser.name || newUser.email.split('@')[0],
-        role: newUser.role,
-        createdAt: new Date().toISOString(),
-        createdBy: user.email,
-        uid: userCredential.user.uid
-      });
-
-      alert(`ユーザー ${newUser.email} を追加しました`);
-      
-      setNewUser({ email: '', password: '', role: 'admin', name: '' });
-      setShowAddUser(false);
-      loadUsers();
-    } catch (error) {
-      console.error('ユーザー追加エラー:', error);
-      if (error.code === 'auth/email-already-in-use') {
-        alert('このメールアドレスは既に使用されています');
-      } else if (error.code === 'auth/weak-password') {
-        alert('パスワードが弱すぎます。より強力なパスワードを設定してください');
-      } else {
-        alert('ユーザーの追加に失敗しました: ' + error.message);
-      }
     }
   };
 
@@ -222,7 +160,6 @@ const AdminPage = () => {
     );
   }
 
-  const canCreateAccount = userRole === 'master' || userRole === 'admin';
   
   // 統計
   const totalUsers = users.length;
@@ -306,113 +243,16 @@ const AdminPage = () => {
           </div>
         </div>
 
-        {/* 新規ユーザー追加ボタン */}
-        {canCreateAccount && (
-          <button
-            onClick={() => setShowAddUser(!showAddUser)}
-            className="mb-6 flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors shadow-lg"
-          >
-            <UserPlus className="w-5 h-5" />
-            <span>新規ユーザー追加</span>
-          </button>
-        )}
+        {/* 新規ユーザー追加は Firebase Console から行ってください */}
+        <div className="mb-6 bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
+          <h3 className="font-bold text-blue-900 mb-2">📝 新規ユーザーの追加方法</h3>
+          <p className="text-sm text-blue-800">
+            新しいアカウントを作成する場合は、Firebase Console から行ってください。<br />
+            詳しくは運用マニュアルをご確認ください。
+          </p>
+        </div>
 
-        {/* 新規ユーザー追加フォーム */}
-        {showAddUser && canCreateAccount && (
-          <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-8 mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">新規ユーザー追加</h2>
-            <form onSubmit={handleAddUser} className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-gray-600 uppercase block mb-2">
-                  <Mail className="w-4 h-4 inline mr-1" />
-                  メールアドレス（必須）
-                </label>
-                <input
-                  type="email"
-                  value={newUser.email}
-                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                  placeholder="user@example.com"
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
 
-              <div>
-                <label className="text-xs font-semibold text-gray-600 uppercase block mb-2">
-                  <User className="w-4 h-4 inline mr-1" />
-                  氏名
-                </label>
-                <input
-                  type="text"
-                  value={newUser.name}
-                  onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-                  placeholder="山田 太郎"
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-gray-600 uppercase block mb-2">
-                  <Key className="w-4 h-4 inline mr-1" />
-                  初期パスワード（必須）
-                </label>
-                <input
-                  type="password"
-                  value={newUser.password}
-                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                  placeholder="••••••••"
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-                <p className="text-xs text-gray-500 mt-1">8文字以上、大小英数字・記号を含めてください</p>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-gray-600 uppercase block mb-2">
-                  <Shield className="w-4 h-4 inline mr-1" />
-                  権限
-                </label>
-                <select
-                  value={newUser.role}
-                  onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
-                >
-                  <option value="admin">admin（管理者） - すべての操作が可能</option>
-                  <option value="viewer">viewer（閲覧専用） - 閲覧のみ</option>
-                  {userRole === 'master' && (
-                    <option value="master">master（マスター） - 開発者専用</option>
-                  )}
-                </select>
-              </div>
-
-              <div className="flex space-x-4 pt-4">
-                <button
-                  type="submit"
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors"
-                >
-                  追加
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddUser(false);
-                    setNewUser({ email: '', password: '', role: 'admin', name: '' });
-                  }}
-                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 px-6 py-3 rounded-xl font-semibold transition-colors"
-                >
-                  キャンセル
-                </button>
-              </div>
-            </form>
-
-            <div className="mt-6 bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4">
-              <p className="text-sm text-yellow-900">
-                <span className="font-semibold">注意:</span> このフォームではFirestoreにユーザー情報を保存します。
-                Firebase Authenticationへの登録は別途Firebase Consoleで行う必要があります。
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* ユーザー一覧 */}
         <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 overflow-hidden">
@@ -473,7 +313,7 @@ const AdminPage = () => {
                     )}
 
                     {/* 削除ボタン */}
-                    {!MASTER_USERS.includes(u.email) && canCreateAccount && (
+                    {!MASTER_USERS.includes(u.email) && (userRole === 'master' || userRole === 'admin') && (
                       <button
                         onClick={() => handleDeleteUser(u.id, u.email)}
                         className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold transition-colors text-sm flex items-center space-x-2"
