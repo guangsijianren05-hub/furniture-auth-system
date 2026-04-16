@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserRole } from '../lib/permissions';
-import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, deleteDoc, doc, addDoc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { updatePassword, EmailAuthProvider, reauthenticateWithCredential, sendPasswordResetEmail, createUserWithEmailAndPassword } from 'firebase/auth';
 import { User, Trash2, Shield, Mail, Key, ArrowLeft, Save, X } from 'lucide-react';
 
 const MASTER_USERS = ['kento.879301@gmail.com'];
@@ -20,6 +20,13 @@ const AdminPage = () => {
     newPassword: '',
     confirmPassword: ''
   });
+  const [showInviteForm, setShowInviteForm] = useState(false);
+  const [inviteData, setInviteData] = useState({
+    email: '',
+    name: '',
+    role: 'admin'
+  });
+  const [isInviting, setIsInviting] = useState(false);
 
   const userRole = user ? getUserRole(user.email) : null;
 
@@ -67,6 +74,70 @@ const AdminPage = () => {
       alert('ユーザー情報の読み込みに失敗しました');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleInviteUser = async (e) => {
+    e.preventDefault();
+    
+    // 権限チェック
+    if (userRole !== 'master' && userRole !== 'admin') {
+      alert('招待の権限がありません');
+      return;
+    }
+    
+    if (!inviteData.email) {
+      alert('メールアドレスは必須です');
+      return;
+    }
+
+    setIsInviting(true);
+
+    try {
+      // ランダムな仮パスワードを生成
+      const tempPassword = Math.random().toString(36).slice(-12) + 'A1!';
+      
+      // Firebase Authenticationにアカウントを作成
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        inviteData.email,
+        tempPassword
+      );
+
+      // Firestoreにユーザー情報を保存
+      await addDoc(collection(db, 'users'), {
+        email: inviteData.email,
+        name: inviteData.name || inviteData.email.split('@')[0],
+        role: inviteData.role,
+        createdAt: new Date().toISOString(),
+        createdBy: user.email,
+        uid: userCredential.user.uid,
+        status: 'invited' // 招待中ステータス
+      });
+
+      // パスワードリセットメールを送信（招待メール）
+      await sendPasswordResetEmail(auth, inviteData.email);
+
+      alert(`招待メールを ${inviteData.email} に送信しました。\n\nユーザーはメールのリンクからパスワードを設定できます。`);
+      
+      setInviteData({ email: '', name: '', role: 'admin' });
+      setShowInviteForm(false);
+      loadUsers();
+    } catch (error) {
+      console.error('招待エラー:', error);
+      if (error.code === 'auth/email-already-in-use') {
+        // 既にアカウントが存在する場合は、パスワードリセットメールだけ送る
+        try {
+          await sendPasswordResetEmail(auth, inviteData.email);
+          alert(`このメールアドレスは既に登録されています。\nパスワードリセットメールを送信しました。`);
+        } catch (resetError) {
+          alert('招待メールの送信に失敗しました: ' + resetError.message);
+        }
+      } else {
+        alert('招待の送信に失敗しました: ' + error.message);
+      }
+    } finally {
+      setIsInviting(false);
     }
   };
 
@@ -243,14 +314,117 @@ const AdminPage = () => {
           </div>
         </div>
 
-        {/* 新規ユーザー追加は Firebase Console から行ってください */}
-        <div className="mb-6 bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
-          <h3 className="font-bold text-blue-900 mb-2">📝 新規ユーザーの追加方法</h3>
-          <p className="text-sm text-blue-800">
-            新しいアカウントを作成する場合は、Firebase Console から行ってください。<br />
-            詳しくは運用マニュアルをご確認ください。
-          </p>
-        </div>
+        {/* ユーザー招待ボタン */}
+        {(userRole === 'master' || userRole === 'admin') && (
+          <button
+            onClick={() => setShowInviteForm(!showInviteForm)}
+            className="mb-6 flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors shadow-lg"
+          >
+            <Mail className="w-5 h-5" />
+            <span>新規ユーザーを招待</span>
+          </button>
+        )}
+
+        {/* 招待フォーム */}
+        {showInviteForm && (userRole === 'master' || userRole === 'admin') && (
+          <div className="bg-white rounded-2xl shadow-xl border-2 border-green-200 p-8 mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">新規ユーザーを招待</h2>
+            <p className="text-sm text-gray-600 mb-6">
+              招待メールを送信します。ユーザーはメールのリンクから自分でパスワードを設定できます。
+            </p>
+            <form onSubmit={handleInviteUser} className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-600 uppercase block mb-2">
+                  <Mail className="w-4 h-4 inline mr-1" />
+                  メールアドレス（必須）
+                </label>
+                <input
+                  type="email"
+                  value={inviteData.email}
+                  onChange={(e) => setInviteData({ ...inviteData, email: e.target.value })}
+                  placeholder="user@example.com"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
+                  required
+                  disabled={isInviting}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-600 uppercase block mb-2">
+                  <User className="w-4 h-4 inline mr-1" />
+                  氏名
+                </label>
+                <input
+                  type="text"
+                  value={inviteData.name}
+                  onChange={(e) => setInviteData({ ...inviteData, name: e.target.value })}
+                  placeholder="山田 太郎"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
+                  disabled={isInviting}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-600 uppercase block mb-2">
+                  <Shield className="w-4 h-4 inline mr-1" />
+                  権限
+                </label>
+                <select
+                  value={inviteData.role}
+                  onChange={(e) => setInviteData({ ...inviteData, role: e.target.value })}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 font-semibold"
+                  disabled={isInviting}
+                >
+                  <option value="admin">admin（管理者） - すべての操作が可能</option>
+                  <option value="viewer">viewer（閲覧専用） - 閲覧のみ</option>
+                  {userRole === 'master' && (
+                    <option value="master">master（マスター） - 開発者専用</option>
+                  )}
+                </select>
+              </div>
+
+              <div className="flex space-x-4 pt-4">
+                <button
+                  type="submit"
+                  disabled={isInviting}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isInviting ? '送信中...' : '招待メールを送信'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowInviteForm(false);
+                    setInviteData({ email: '', name: '', role: 'admin' });
+                  }}
+                  disabled={isInviting}
+                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 px-6 py-3 rounded-xl font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  キャンセル
+                </button>
+              </div>
+            </form>
+
+            <div className="mt-6 bg-green-50 border-2 border-green-200 rounded-xl p-4">
+              <p className="text-sm text-green-900">
+                <span className="font-semibold">✓ セキュア:</span> ユーザーが自分でパスワードを設定します<br />
+                <span className="font-semibold">✓ 簡単:</span> メールのリンクをクリックするだけ<br />
+                <span className="font-semibold">✓ 自動:</span> すぐにログイン可能になります
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* 新規ユーザーの追加方法の案内 */}
+        {!showInviteForm && (
+          <div className="mb-6 bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
+            <h3 className="font-bold text-blue-900 mb-2">📧 招待システムについて</h3>
+            <p className="text-sm text-blue-800">
+              上のボタンから新規ユーザーを招待できます。<br />
+              招待されたユーザーは、メールのリンクから自分でパスワードを設定します。
+            </p>
+          </div>
+        )}
 
 
 
@@ -283,6 +457,11 @@ const AdminPage = () => {
                         {(u.role || 'admin') === 'admin' && '管理者'}
                         {(u.role || 'admin') === 'viewer' && '閲覧専用'}
                       </span>
+                      {u.status === 'invited' && (
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800">
+                          招待中
+                        </span>
+                      )}
                     </div>
                     {u.name && (
                       <div className="flex items-center space-x-3 text-sm text-gray-600">
