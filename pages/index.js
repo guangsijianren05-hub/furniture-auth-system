@@ -626,16 +626,18 @@ const FurniturePurchaseSystem = () => {
                 <Package className="w-7 h-7 text-amber-900" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold tracking-tight">家具買取管理システム</h1>
-                <p className="text-amber-200 text-sm mt-1">Furniture Purchase Management</p>
+                <h1 className="text-2xl font-bold tracking-tight whitespace-nowrap">家具買取管理システム</h1>
+                <p className="text-amber-200 text-sm mt-1 whitespace-nowrap">Furniture Purchase Management</p>
               </div>
             </div>
             <div className="flex items-center space-x-3">
               <div className="hidden md:flex items-center space-x-2 bg-white/10 px-4 py-2 rounded-lg backdrop-blur-sm border border-white/20">
                 <User className="w-4 h-4" />
                 <div className="text-sm">
-                  <p className="font-medium">{user?.email}</p>
-                  <p className="text-xs text-amber-200">
+                  <p className="font-medium whitespace-nowrap">
+                    {user?.displayName || user?.email?.split('@')[0]}様
+                  </p>
+                  <p className="text-xs text-amber-200 whitespace-nowrap">
                     {userRole === 'master' ? 'マスター' : 
                      userRole === 'admin' ? '管理者' : 
                      userRole === 'staff' ? '査定員' : '閲覧者'}
@@ -655,28 +657,28 @@ const FurniturePurchaseSystem = () => {
                 className="flex items-center space-x-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg transition-all backdrop-blur-sm border border-white/20"
               >
                 <Upload className="w-4 h-4" />
-                <span className="text-sm font-medium">CSV取込</span>
+                <span className="text-sm font-medium whitespace-nowrap">CSV取込</span>
               </button>
               <button
                 onClick={syncFromSheets}
                 className="flex items-center space-x-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg transition-all backdrop-blur-sm border border-white/20"
               >
                 <RefreshCw className="w-4 h-4" />
-                <span className="text-sm font-medium">同期</span>
+                <span className="text-sm font-medium whitespace-nowrap">同期</span>
               </button>
               <button
                 onClick={exportToCSV}
                 className="flex items-center space-x-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg transition-all backdrop-blur-sm border border-white/20"
               >
                 <Download className="w-4 h-4" />
-                <span className="text-sm font-medium">エクスポート</span>
+                <span className="text-sm font-medium whitespace-nowrap">エクスポート</span>
               </button>
               <button
                 onClick={() => setShowSettings(!showSettings)}
                 className="flex items-center space-x-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg transition-all backdrop-blur-sm border border-white/20"
               >
                 <Settings className="w-4 h-4" />
-                <span className="text-sm font-medium">設定</span>
+                <span className="text-sm font-medium whitespace-nowrap">設定</span>
               </button>
               {user?.email === 'kento.879301@gmail.com' && (
                 <button
@@ -684,7 +686,7 @@ const FurniturePurchaseSystem = () => {
                   className="flex items-center space-x-2 bg-purple-500/20 hover:bg-purple-500/30 px-4 py-2 rounded-lg transition-all backdrop-blur-sm border border-purple-300/30"
                 >
                   <User className="w-4 h-4" />
-                  <span className="text-sm font-medium">ユーザー管理</span>
+                  <span className="text-sm font-medium whitespace-nowrap">ユーザー管理</span>
                 </button>
               )}
               <button
@@ -692,21 +694,21 @@ const FurniturePurchaseSystem = () => {
                 className="flex items-center space-x-2 bg-blue-500/20 hover:bg-blue-500/30 px-4 py-2 rounded-lg transition-all backdrop-blur-sm border border-blue-300/30"
               >
                 <Package className="w-4 h-4" />
-                <span className="text-sm font-medium">ダッシュボード</span>
+                <span className="text-sm font-medium whitespace-nowrap">ダッシュボード</span>
               </button>
               <button
                 onClick={() => router.push('/manual')}
                 className="flex items-center space-x-2 bg-green-500/20 hover:bg-green-500/30 px-4 py-2 rounded-lg transition-all backdrop-blur-sm border border-green-300/30"
               >
                 <FileText className="w-4 h-4" />
-                <span className="text-sm font-medium">マニュアル</span>
+                <span className="text-sm font-medium whitespace-nowrap">マニュアル</span>
               </button>
               <button
                 onClick={handleSignOut}
                 className="flex items-center space-x-2 bg-red-500/20 hover:bg-red-500/30 px-4 py-2 rounded-lg transition-all backdrop-blur-sm border border-red-300/30"
               >
                 <LogOut className="w-4 h-4" />
-                <span className="text-sm font-medium">ログアウト</span>
+                <span className="text-sm font-medium whitespace-nowrap">ログアウト</span>
               </button>
             </div>
           </div>
