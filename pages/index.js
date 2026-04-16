@@ -222,7 +222,6 @@ const FurniturePurchaseSystem = () => {
       setIsLoading(false);
     }
   };
-  };
 
   // 購入依頼更新（Firestoreベース）
   const updatePurchase = async (id, updates, actionDescription) => {
@@ -339,19 +338,6 @@ const FurniturePurchaseSystem = () => {
     }
   };
 
-  // バックアップ作成
-  const createBackup = async () => {
-    const backup = {
-      timestamp: new Date().toISOString(),
-      data: purchases
-    };
-    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `バックアップ_${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-  };
-
   // CSV読み込み（改善版：重複チェック、エラー詳細表示）
   const handleCSVUpload = async (event) => {
     const file = event.target.files[0];
@@ -359,13 +345,8 @@ const FurniturePurchaseSystem = () => {
 
     setIsLoading(true);
     const errors = [];
-    const summary = {
-      total: 0,
-      added: 0,
-      updated: 0,
-      skipped: 0,
-      errors: 0
-    };
+    let addedCount = 0;
+    let updatedCount = 0;
 
     try {
       const text = await file.text();
@@ -378,8 +359,6 @@ const FurniturePurchaseSystem = () => {
       for (let i = 1; i < lines.length; i++) {
         if (!lines[i].trim()) continue;
         
-        summary.total++;
-
         try {
           // CSVパース
           const values = [];
@@ -398,12 +377,13 @@ const FurniturePurchaseSystem = () => {
           }
           values.push(current.trim());
 
-          // 必須フィールドのバリデーション
+          // 必須チェック
           if (!values[0] || !values[2]) {
-            throw new Error('LINE IDまたは回答日時が空です');
+            errors.push({ row: i + 1, error: 'LINE IDまたは回答日時が空です' });
+            continue;
           }
 
-          // 写真URLを収集
+          // 写真URL収集
           const photos = [];
           for (let j = 12; j <= 16; j++) {
             if (values[j] && values[j].startsWith('http')) {
@@ -413,7 +393,7 @@ const FurniturePurchaseSystem = () => {
 
           // データ変換
           const purchaseData = {
-            timestamp: values[2] || new Date().toISOString().replace('T', ' ').substring(0, 16),
+            timestamp: values[2],
             customerName: values[6] || '不明',
             lineUserId: values[0],
             lineName: values[4],
@@ -424,32 +404,20 @@ const FurniturePurchaseSystem = () => {
             purchaseYear: values[10] || '',
             condition: values[11] || '',
             photos: photos,
-            notes: values[17] || '',
-            approvedDate: null,
-            paymentDate: null,
-            paymentConfirmed: false,
-            pickupDate: null,
-            pickupConfirmed: false,
-            pickupConfirmedBy: null,
-            completedDate: null
+            notes: values[17] || ''
           };
 
-          // 重複チェック（LINE IDと回答日時で判定）
+          // 重複チェック
           const existing = purchases.find(p => 
             p.lineUserId === purchaseData.lineUserId && 
             p.timestamp === purchaseData.timestamp
           );
 
           if (existing) {
-            // 既存データを更新
+            // 更新
             updatedPurchases.push({
               ...existing,
               ...purchaseData,
-              // ステータス関連は保持
-              status: existing.status,
-              assignedTo: existing.assignedTo,
-              estimatedPrice: existing.estimatedPrice,
-              approved: existing.approved,
               history: [
                 ...existing.history,
                 {
@@ -459,9 +427,9 @@ const FurniturePurchaseSystem = () => {
                 }
               ]
             });
-            summary.updated++;
+            updatedCount++;
           } else {
-            // 新規データ
+            // 新規
             newPurchases.push({
               id: `P${String(purchases.length + newPurchases.length + 1).padStart(4, '0')}`,
               ...purchaseData,
@@ -469,37 +437,34 @@ const FurniturePurchaseSystem = () => {
               assignedTo: '未割当',
               estimatedPrice: null,
               approved: false,
-              history: [
-                {
-                  timestamp: purchaseData.timestamp,
-                  action: 'CSV読み込みによる新規依頼受付',
-                  user: 'システム'
-                }
-              ]
+              approvedDate: null,
+              paymentDate: null,
+              paymentConfirmed: false,
+              pickupDate: null,
+              pickupConfirmed: false,
+              pickupConfirmedBy: null,
+              completedDate: null,
+              history: [{
+                timestamp: purchaseData.timestamp,
+                action: 'CSV読み込みによる新規依頼受付',
+                user: 'システム'
+              }]
             });
-            summary.added++;
+            addedCount++;
           }
         } catch (rowError) {
-          summary.errors++;
-          errors.push({
-            row: i + 1,
-            error: rowError.message,
-            data: lines[i].substring(0, 100) + '...'
-          });
-          console.error(`${i + 1}行目エラー:`, rowError);
+          errors.push({ row: i + 1, error: rowError.message });
         }
       }
 
       // Firestoreに保存
       const savedPurchases = [];
       
-      // 新規データを保存
       for (const purchase of newPurchases) {
         const docRef = await addDoc(collection(db, 'purchases'), purchase);
         savedPurchases.push({ ...purchase, firestoreId: docRef.id });
       }
 
-      // 既存データを更新
       for (const purchase of updatedPurchases) {
         if (purchase.firestoreId) {
           await updateDoc(doc(db, 'purchases', purchase.firestoreId), purchase);
@@ -507,41 +472,34 @@ const FurniturePurchaseSystem = () => {
         savedPurchases.push(purchase);
       }
 
-      // ローカルステート更新
-      const updatedAllPurchases = purchases.map(p => {
+      // ローカル更新
+      const updatedAll = purchases.map(p => {
         const updated = updatedPurchases.find(u => u.id === p.id);
         return updated || p;
       });
-      const allPurchases = [...updatedAllPurchases, ...savedPurchases.filter(sp => !sp.firestoreId || !purchases.find(p => p.id === sp.id))];
+      const allPurchases = [...updatedAll, ...savedPurchases.filter(sp => !purchases.find(p => p.id === sp.id))];
       setPurchases(allPurchases);
       
-      // 処理結果を表示
-      let message = `CSV取り込み完了\n\n`;
-      message += `総件数: ${summary.total}件\n`;
-      message += `新規追加: ${summary.added}件\n`;
-      message += `更新: ${summary.updated}件\n`;
-      if (summary.errors > 0) {
-        message += `エラー: ${summary.errors}件\n\n`;
-        message += 'エラー詳細:\n';
-        errors.slice(0, 5).forEach(e => {
+      // 結果表示
+      let message = `CSV取り込み完了\n\n新規追加: ${addedCount}件\n更新: ${updatedCount}件`;
+      if (errors.length > 0) {
+        message += `\nエラー: ${errors.length}件\n\n`;
+        errors.slice(0, 3).forEach(e => {
           message += `${e.row}行目: ${e.error}\n`;
         });
-        if (errors.length > 5) {
-          message += `\n他${errors.length - 5}件のエラーがあります。\nコンソールログを確認してください。`;
-        }
       }
       alert(message);
 
-      } catch (error) {
-        console.error('CSV読み込みエラー:', error);
-        alert(`CSVの読み込みに失敗しました。\n\nエラー: ${error.message}\n\nファイル形式を確認してください。`);
-      } finally {
-        setIsLoading(false);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
+    } catch (error) {
+      console.error('CSV読み込みエラー:', error);
+      alert('CSVの読み込みに失敗しました。ファイル形式を確認してください。');
+    } finally {
+      setIsLoading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
       }
-    };
+    }
+  };
 
   // ステータス別の件数を計算
   const statusCounts = Object.keys(STATUSES).reduce((acc, status) => {
