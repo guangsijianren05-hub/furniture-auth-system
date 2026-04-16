@@ -38,6 +38,7 @@ const FurniturePurchaseSystem = () => {
   const [sheetsUrl, setSheetsUrl] = useState('');
   const [selectedPurchases, setSelectedPurchases] = useState([]);
   const [bulkOperating, setBulkOperating] = useState(false);
+  const [toast, setToast] = useState(null);
 
   // データ読み込み
   useEffect(() => {
@@ -212,6 +213,12 @@ const FurniturePurchaseSystem = () => {
     }
   };
 
+  // トースト通知を表示
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
   // 購入依頼更新
   const updatePurchase = async (id, updates, actionDescription) => {
     try {
@@ -267,9 +274,17 @@ const FurniturePurchaseSystem = () => {
       );
       setPurchases(updatedPurchases);
 
+      // ステータス変更時のトースト通知
+      if (newStatus !== purchase.status) {
+        const statusLabel = STATUSES[newStatus]?.label || newStatus;
+        showToast(`ステータスを「${statusLabel}」に変更しました`, 'success');
+      } else {
+        showToast('更新しました', 'success');
+      }
+
     } catch (error) {
       console.error('更新エラー:', error);
-      alert('データの更新に失敗しました');
+      showToast('データの更新に失敗しました', 'error');
     }
   };
 
@@ -1073,6 +1088,12 @@ const FurniturePurchaseSystem = () => {
                       id="approved"
                       checked={selectedPurchase.approved}
                       onChange={(e) => {
+                        // バリデーション: 査定金額が入力されていない場合は承認不可
+                        if (e.target.checked && !selectedPurchase.estimatedPrice) {
+                          showToast('査定金額を入力してください', 'error');
+                          return;
+                        }
+                        
                         updatePurchase(
                           selectedPurchase.id,
                           { approved: e.target.checked },
@@ -1084,6 +1105,9 @@ const FurniturePurchaseSystem = () => {
                     />
                     <label htmlFor="approved" className="text-base font-semibold text-gray-900">
                       買取承認
+                      {!selectedPurchase.estimatedPrice && (
+                        <span className="text-red-500 text-sm ml-2">（査定金額を入力してください）</span>
+                      )}
                     </label>
                   </div>
                 </div>
@@ -1123,6 +1147,12 @@ const FurniturePurchaseSystem = () => {
                         id="paymentConfirmed"
                         checked={selectedPurchase.paymentConfirmed}
                         onChange={(e) => {
+                          // バリデーション: 承認されていない場合は入金確認不可
+                          if (e.target.checked && !selectedPurchase.approved) {
+                            showToast('買取承認が完了していません', 'error');
+                            return;
+                          }
+                          
                           updatePurchase(
                             selectedPurchase.id,
                             { paymentConfirmed: e.target.checked },
@@ -1136,6 +1166,9 @@ const FurniturePurchaseSystem = () => {
                       <label htmlFor="paymentConfirmed" className="text-base font-semibold text-gray-900 flex items-center">
                         <CheckCircle className="w-5 h-5 mr-2 text-orange-600" />
                         入金確認済み
+                        {!selectedPurchase.approved && selectedPurchase.status === 'paymentPending' && (
+                          <span className="text-red-500 text-sm ml-2">（買取承認が必要です）</span>
+                        )}
                       </label>
                     </div>
                   </div>
@@ -1169,6 +1202,12 @@ const FurniturePurchaseSystem = () => {
                         id="pickupConfirmed"
                         checked={selectedPurchase.pickupConfirmed}
                         onChange={(e) => {
+                          // バリデーション: 入金確認されていない場合は商品到着確認不可
+                          if (e.target.checked && !selectedPurchase.paymentConfirmed) {
+                            showToast('入金確認が完了していません', 'error');
+                            return;
+                          }
+                          
                           updatePurchase(
                             selectedPurchase.id,
                             { pickupConfirmed: e.target.checked },
@@ -1182,6 +1221,9 @@ const FurniturePurchaseSystem = () => {
                       <label htmlFor="pickupConfirmed" className="text-base font-semibold text-gray-900 flex items-center">
                         <CheckCircle className="w-5 h-5 mr-2 text-cyan-600" />
                         商品到着確認済み（担当者が実物確認）
+                        {!selectedPurchase.paymentConfirmed && selectedPurchase.status === 'awaitingPickup' && (
+                          <span className="text-red-500 text-sm ml-2">（入金確認が必要です）</span>
+                        )}
                       </label>
                     </div>
 
@@ -1234,6 +1276,26 @@ const FurniturePurchaseSystem = () => {
             <div className="flex items-center space-x-3">
               <RefreshCw className="w-6 h-6 animate-spin text-amber-600" />
               <p className="text-lg font-semibold text-gray-900">読み込み中...</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* トースト通知 */}
+      {toast && (
+        <div className="fixed bottom-8 right-8 z-50 animate-slide-up">
+          <div className={`rounded-xl shadow-2xl p-4 min-w-[300px] border-2 ${
+            toast.type === 'success' 
+              ? 'bg-emerald-50 border-emerald-300 text-emerald-900' 
+              : 'bg-red-50 border-red-300 text-red-900'
+          }`}>
+            <div className="flex items-center space-x-3">
+              {toast.type === 'success' ? (
+                <CheckCircle className="w-6 h-6 text-emerald-600" />
+              ) : (
+                <X className="w-6 h-6 text-red-600" />
+              )}
+              <p className="font-semibold">{toast.message}</p>
             </div>
           </div>
         </div>
