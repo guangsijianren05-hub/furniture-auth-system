@@ -695,6 +695,13 @@ const FurniturePurchaseSystem = () => {
                 <span className="text-sm font-medium">ダッシュボード</span>
               </button>
               <button
+                onClick={() => router.push('/manual')}
+                className="flex items-center space-x-2 bg-green-500/20 hover:bg-green-500/30 px-4 py-2 rounded-lg transition-all backdrop-blur-sm border border-green-300/30"
+              >
+                <FileText className="w-4 h-4" />
+                <span className="text-sm font-medium">マニュアル</span>
+              </button>
+              <button
                 onClick={handleSignOut}
                 className="flex items-center space-x-2 bg-red-500/20 hover:bg-red-500/30 px-4 py-2 rounded-lg transition-all backdrop-blur-sm border border-red-300/30"
               >
