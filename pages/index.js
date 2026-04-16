@@ -36,6 +36,8 @@ const FurniturePurchaseSystem = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [sheetsUrl, setSheetsUrl] = useState('');
+  const [selectedPurchases, setSelectedPurchases] = useState([]);
+  const [bulkOperating, setBulkOperating] = useState(false);
 
   // データ読み込み
   useEffect(() => {
@@ -269,6 +271,120 @@ const FurniturePurchaseSystem = () => {
       console.error('更新エラー:', error);
       alert('データの更新に失敗しました');
     }
+  };
+
+  // 一括操作: 全選択/全解除
+  const toggleSelectAll = () => {
+    if (selectedPurchases.length === filteredPurchases.length) {
+      setSelectedPurchases([]);
+    } else {
+      setSelectedPurchases(filteredPurchases.map(p => p.id));
+    }
+  };
+
+  // 一括操作: 個別選択
+  const toggleSelect = (id) => {
+    if (selectedPurchases.includes(id)) {
+      setSelectedPurchases(selectedPurchases.filter(pid => pid !== id));
+    } else {
+      setSelectedPurchases([...selectedPurchases, id]);
+    }
+  };
+
+  // 一括操作: 担当者割り当て
+  const bulkAssign = async (staffName) => {
+    if (selectedPurchases.length === 0) {
+      alert('依頼を選択してください');
+      return;
+    }
+    
+    if (!confirm(`選択した${selectedPurchases.length}件の依頼を ${staffName} に割り当てますか？`)) {
+      return;
+    }
+    
+    setBulkOperating(true);
+    try {
+      for (const purchaseId of selectedPurchases) {
+        await updatePurchase(
+          purchaseId,
+          { assignedTo: staffName },
+          `一括割当: ${staffName}`
+        );
+      }
+      alert(`${selectedPurchases.length}件の依頼を ${staffName} に割り当てました`);
+      setSelectedPurchases([]);
+      await loadData();
+    } catch (error) {
+      console.error('一括割当エラー:', error);
+      alert('一括割当に失敗しました');
+    } finally {
+      setBulkOperating(false);
+    }
+  };
+
+  // 一括操作: ステータス変更
+  const bulkChangeStatus = async (newStatus) => {
+    if (selectedPurchases.length === 0) {
+      alert('依頼を選択してください');
+      return;
+    }
+    
+    const statusLabel = STATUSES[newStatus]?.label || newStatus;
+    if (!confirm(`選択した${selectedPurchases.length}件のステータスを「${statusLabel}」に変更しますか？`)) {
+      return;
+    }
+    
+    setBulkOperating(true);
+    try {
+      for (const purchaseId of selectedPurchases) {
+        await updatePurchase(
+          purchaseId,
+          { status: newStatus },
+          `一括ステータス変更: ${statusLabel}`
+        );
+      }
+      alert(`${selectedPurchases.length}件のステータスを変更しました`);
+      setSelectedPurchases([]);
+      await loadData();
+    } catch (error) {
+      console.error('一括ステータス変更エラー:', error);
+      alert('一括ステータス変更に失敗しました');
+    } finally {
+      setBulkOperating(false);
+    }
+  };
+
+  // 一括操作: 選択分のみエクスポート
+  const exportSelected = () => {
+    if (selectedPurchases.length === 0) {
+      alert('依頼を選択してください');
+      return;
+    }
+    
+    const selectedData = purchases.filter(p => selectedPurchases.includes(p.id));
+    
+    const headers = ['依頼ID', '受付日時', 'お客様名', '商品名', 'カテゴリ', '状態', 'ステータス', '担当者', '査定金額', '承認'];
+    const rows = selectedData.map(p => [
+      p.id,
+      p.timestamp,
+      p.customerName,
+      p.productName,
+      p.category,
+      p.condition,
+      STATUSES[p.status].label,
+      p.assignedTo,
+      p.estimatedPrice || '',
+      p.approved ? '承認済' : '未承認'
+    ]);
+
+    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `選択データ_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    
+    alert(`${selectedPurchases.length}件をエクスポートしました`);
   };
 
   // CSVエクスポート
@@ -557,6 +673,13 @@ const FurniturePurchaseSystem = () => {
                 </button>
               )}
               <button
+                onClick={() => router.push('/dashboard')}
+                className="flex items-center space-x-2 bg-blue-500/20 hover:bg-blue-500/30 px-4 py-2 rounded-lg transition-all backdrop-blur-sm border border-blue-300/30"
+              >
+                <Package className="w-4 h-4" />
+                <span className="text-sm font-medium">ダッシュボード</span>
+              </button>
+              <button
                 onClick={handleSignOut}
                 className="flex items-center space-x-2 bg-red-500/20 hover:bg-red-500/30 px-4 py-2 rounded-lg transition-all backdrop-blur-sm border border-red-300/30"
               >
@@ -595,6 +718,66 @@ const FurniturePurchaseSystem = () => {
           )}
         </div>
       </header>
+
+      {/* 一括操作バー */}
+      {selectedPurchases.length > 0 && (
+        <div className="bg-blue-600 text-white px-6 py-4 shadow-lg">
+          <div className="container mx-auto flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <span className="font-semibold text-lg">{selectedPurchases.length}件選択中</span>
+              <button
+                onClick={() => setSelectedPurchases([])}
+                className="text-sm underline hover:no-underline"
+              >
+                選択解除
+              </button>
+            </div>
+            
+            <div className="flex items-center space-x-3">
+              <select
+                onChange={(e) => {
+                  if (e.target.value) {
+                    bulkAssign(e.target.value);
+                    e.target.value = '';
+                  }
+                }}
+                className="px-4 py-2 rounded-lg bg-white text-gray-900 font-medium"
+                disabled={bulkOperating}
+              >
+                <option value="">担当者を一括割当...</option>
+                {STAFF.filter(s => s !== '未割当').map(staff => (
+                  <option key={staff} value={staff}>{staff}</option>
+                ))}
+              </select>
+              
+              <select
+                onChange={(e) => {
+                  if (e.target.value) {
+                    bulkChangeStatus(e.target.value);
+                    e.target.value = '';
+                  }
+                }}
+                className="px-4 py-2 rounded-lg bg-white text-gray-900 font-medium"
+                disabled={bulkOperating}
+              >
+                <option value="">ステータスを一括変更...</option>
+                {Object.entries(STATUSES).map(([key, status]) => (
+                  <option key={key} value={key}>{status.label}</option>
+                ))}
+              </select>
+              
+              <button
+                onClick={exportSelected}
+                className="px-4 py-2 bg-white text-blue-600 rounded-lg font-semibold hover:bg-blue-50 transition-colors flex items-center space-x-2"
+                disabled={bulkOperating}
+              >
+                <Download className="w-4 h-4" />
+                <span>選択分をエクスポート</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="container mx-auto px-6 py-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -669,43 +852,56 @@ const FurniturePurchaseSystem = () => {
                   {statusPurchases.map(purchase => (
                     <div
                       key={purchase.id}
-                      onClick={() => setSelectedPurchase(purchase)}
-                      className="bg-white rounded-xl p-4 shadow-md hover:shadow-xl transition-all cursor-pointer border-2 border-transparent hover:border-amber-400"
+                      className="bg-white rounded-xl p-4 shadow-md hover:shadow-xl transition-all border-2 border-transparent hover:border-amber-400 relative"
                     >
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1">
-                          <p className="text-xs font-semibold text-amber-600 mb-1">{purchase.id}</p>
-                          <h4 className="font-bold text-gray-900 text-sm mb-1">{purchase.productName}</h4>
-                          <p className="text-xs text-gray-600">{purchase.customerName}</p>
+                      {/* チェックボックス */}
+                      <input
+                        type="checkbox"
+                        checked={selectedPurchases.includes(purchase.id)}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          toggleSelect(purchase.id);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="absolute top-2 left-2 w-5 h-5 rounded border-2 border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500 cursor-pointer z-10"
+                      />
+                      
+                      <div onClick={() => setSelectedPurchase(purchase)} className="cursor-pointer">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1 ml-7">
+                            <p className="text-xs font-semibold text-amber-600 mb-1">{purchase.id}</p>
+                            <h4 className="font-bold text-gray-900 text-sm mb-1">{purchase.productName}</h4>
+                            <p className="text-xs text-gray-600">{purchase.customerName}</p>
+                          </div>
+                          {purchase.photos && purchase.photos.length > 0 && (
+                            <img
+                              src={purchase.photos[0]}
+                              alt={purchase.productName}
+                              className="w-12 h-12 rounded-lg object-cover ml-2"
+                            />
+                          )}
                         </div>
-                        {purchase.photos && purchase.photos.length > 0 && (
-                          <img
-                            src={purchase.photos[0]}
-                            alt={purchase.productName}
-                            className="w-12 h-12 rounded-lg object-cover ml-2"
-                          />
+                        
+                        <div className="flex items-center justify-between text-xs text-gray-600 mt-3 pt-3 border-t border-gray-200">
+                          <span className="flex items-center">
+                            <Calendar className="w-3 h-3 mr-1" />
+                            {purchase.timestamp.split(' ')[0]}
+                          </span>
+                          <span className="flex items-center">
+                            <User className="w-3 h-3 mr-1" />
+                            {purchase.assignedTo}
+                          </span>
+                        </div>
+                        
+                        {purchase.estimatedPrice && (
+                          <div className="mt-2 pt-2 border-t border-gray-200">
+                            <p className="text-sm font-bold text-amber-700 flex items-center">
+                              <DollarSign className="w-4 h-4 mr-1" />
+                              ¥{purchase.estimatedPrice.toLocaleString()}
+                            </p>
+                          </div>
                         )}
                       </div>
-                      
-                      <div className="flex items-center justify-between text-xs text-gray-600 mt-3 pt-3 border-t border-gray-200">
-                        <span className="flex items-center">
-                          <Calendar className="w-3 h-3 mr-1" />
-                          {purchase.timestamp.split(' ')[0]}
-                        </span>
-                        <span className="flex items-center">
-                          <User className="w-3 h-3 mr-1" />
-                          {purchase.assignedTo}
-                        </span>
-                      </div>
-                      
-                      {purchase.estimatedPrice && (
-                        <div className="mt-2 pt-2 border-t border-gray-200">
-                          <p className="text-sm font-bold text-amber-700 flex items-center">
-                            <DollarSign className="w-4 h-4 mr-1" />
-                            ¥{purchase.estimatedPrice.toLocaleString()}
-                          </p>
-                        </div>
-                      )}
                     </div>
                   ))}
                   
