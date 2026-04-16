@@ -323,7 +323,7 @@ const Manual = () => {
 
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h4 className="font-bold text-gray-900 mb-2">Q. パスワードを忘れました</h4>
-                  <p className="text-gray-700">A. 管理者（kento.879301@gmail.com）に連絡してください。パスワードをリセットします。</p>
+                  <p className="text-gray-700">A. システム管理者に連絡してください。パスワードをリセットします。</p>
                 </div>
               </div>
             </div>
@@ -333,14 +333,10 @@ const Manual = () => {
         {/* サポート */}
         <div className="bg-gradient-to-r from-amber-900 to-orange-900 text-white rounded-2xl shadow-xl p-8 text-center">
           <h2 className="text-2xl font-bold mb-4">📞 サポートが必要ですか？</h2>
-          <p className="text-amber-100 mb-6">
+          <p className="text-amber-100">
             問題が発生した場合や、ご不明な点がございましたら<br />
-            お気軽に管理者までご連絡ください。
+            システム管理者までご連絡ください。
           </p>
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 inline-block">
-            <p className="text-sm text-amber-200 mb-1">管理者連絡先</p>
-            <p className="font-bold text-lg">kento.879301@gmail.com</p>
-          </div>
         </div>
       </div>
     </div>
