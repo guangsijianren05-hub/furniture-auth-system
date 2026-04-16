@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Search, Download, Upload, RefreshCw, Plus, X, Calendar, User, Package, DollarSign, Image as ImageIcon, History, Settings, FileText, MapPin, LogOut, CheckCircle } from 'lucide-react';
+import { Search, Download, Upload, RefreshCw, Plus, X, Calendar, User, Package, Image as ImageIcon, History, Settings, FileText, MapPin, LogOut, CheckCircle } from 'lucide-react';
 
 // ステータス定義（6段階） - コンポーネント外に移動
 const STATUSES = {
@@ -910,8 +910,7 @@ const FurniturePurchaseSystem = () => {
                         
                         {purchase.estimatedPrice && (
                           <div className="mt-2 pt-2 border-t border-gray-200">
-                            <p className="text-sm font-bold text-amber-700 flex items-center">
-                              <DollarSign className="w-4 h-4 mr-1" />
+                            <p className="text-sm font-bold text-amber-700">
                               ¥{purchase.estimatedPrice.toLocaleString()}
                             </p>
                           </div>
