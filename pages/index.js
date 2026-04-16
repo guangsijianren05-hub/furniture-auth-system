@@ -5,57 +5,28 @@ import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy 
 import { db } from '../lib/firebase';
 import { Search, Download, Upload, RefreshCw, Plus, X, Calendar, User, Package, DollarSign, Image as ImageIcon, History, Settings, FileText, MapPin, LogOut, CheckCircle } from 'lucide-react';
 
+// ステータス定義（6段階） - コンポーネント外に移動
+const STATUSES = {
+  pending: { label: '未対応', color: 'bg-amber-100 text-amber-800 border-amber-300' },
+  inProgress: { label: '対応中', color: 'bg-blue-100 text-blue-800 border-blue-300' },
+  proposed: { label: '提案中', color: 'bg-purple-100 text-purple-800 border-purple-300' },
+  paymentPending: { label: '入金確認中', color: 'bg-orange-100 text-orange-800 border-orange-300' },
+  awaitingPickup: { label: '商品到着待ち', color: 'bg-cyan-100 text-cyan-800 border-cyan-300' },
+  completed: { label: '完了', color: 'bg-emerald-100 text-emerald-800 border-emerald-300' }
+};
+
+// カテゴリ定義 - コンポーネント外に移動
+const CATEGORIES = ['ソファ', 'ラウンジチェア', 'ベッド', 'テーブル', 'チェア', 'デスク', '収納家具', 'その他'];
+
+// 担当者リスト - コンポーネント外に移動
+const STAFF = ['未割当', '山田', '佐藤', '鈴木', '田中'];
+
 const FurniturePurchaseSystem = () => {
   const router = useRouter();
   const { user, userRole, loading: authLoading, signOut } = useAuth();
-
-  // 認証チェック
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login');
-    }
-  }, [user, authLoading, router]);
-
-  // ログアウト処理
-  const handleSignOut = async () => {
-    if (confirm('ログアウトしますか？')) {
-      await signOut();
-      router.push('/login');
-    }
-  };
-
-  // 認証中は何も表示しない
-  if (authLoading || !user) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 flex items-center justify-center">
-        <div className="text-center">
-          <Package className="w-16 h-16 text-amber-600 mx-auto mb-4 animate-pulse" />
-          <p className="text-lg font-semibold text-gray-700">読み込み中...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // ステータス定義（6段階）
-  const STATUSES = {
-    pending: { label: '未対応', color: 'bg-amber-100 text-amber-800 border-amber-300' },
-    inProgress: { label: '対応中', color: 'bg-blue-100 text-blue-800 border-blue-300' },
-    proposed: { label: '提案中', color: 'bg-purple-100 text-purple-800 border-purple-300' },
-    paymentPending: { label: '入金確認中', color: 'bg-orange-100 text-orange-800 border-orange-300' },
-    awaitingPickup: { label: '商品到着待ち', color: 'bg-cyan-100 text-cyan-800 border-cyan-300' },
-    completed: { label: '完了', color: 'bg-emerald-100 text-emerald-800 border-emerald-300' }
-  };
-
-  // カテゴリ定義（実際のCSVから）
-  const CATEGORIES = ['ソファ', 'ラウンジチェア', 'ベッド', 'テーブル', 'チェア', 'デスク', '収納家具', 'その他'];
   
-  // 担当者リスト
-  const STAFF = ['未割当', '山田', '佐藤', '鈴木', '田中'];
-  
-  // ファイルアップロード用ref
+  // すべてのフックを最初に配置（早期リターンの前）
   const fileInputRef = useRef(null);
-
-  // State管理
   const [purchases, setPurchases] = useState([]);
   const [filteredPurchases, setFilteredPurchases] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -68,8 +39,17 @@ const FurniturePurchaseSystem = () => {
 
   // データ読み込み
   useEffect(() => {
-    loadData();
-  }, []);
+    if (user) {
+      loadData();
+    }
+  }, [user]);
+
+  // 認証チェック
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, authLoading, router]);
 
   // フィルタリング
   useEffect(() => {
@@ -108,7 +88,7 @@ const FurniturePurchaseSystem = () => {
         });
         setPurchases(purchasesData);
       } else {
-        // 初期サンプルデータ（実際のCSV構造に準拠）
+        // 初期サンプルデータ
         const sampleData = [
           {
             id: 'P0001',
@@ -208,7 +188,6 @@ const FurniturePurchaseSystem = () => {
           }
         ];
         
-        // サンプルデータをFirestoreに保存
         for (const purchase of sampleData) {
           await addDoc(collection(db, 'purchases'), purchase);
         }
@@ -223,7 +202,15 @@ const FurniturePurchaseSystem = () => {
     }
   };
 
-  // 購入依頼更新（Firestoreベース）
+  // ログアウト処理
+  const handleSignOut = async () => {
+    if (confirm('ログアウトしますか？')) {
+      await signOut();
+      router.push('/login');
+    }
+  };
+
+  // 購入依頼更新
   const updatePurchase = async (id, updates, actionDescription) => {
     try {
       const purchase = purchases.find(p => p.id === id);
@@ -238,31 +225,25 @@ const FurniturePurchaseSystem = () => {
         }
       ];
 
-      // ステータス自動更新ロジック（6段階）
       let newStatus = purchase.status;
       
-      // 担当者割当 → 対応中
       if (updates.assignedTo && updates.assignedTo !== '未割当' && purchase.status === 'pending') {
         newStatus = 'inProgress';
       }
       
-      // 査定金額入力 → 提案中
       if (updates.estimatedPrice !== null && updates.estimatedPrice !== undefined && purchase.status === 'inProgress') {
         newStatus = 'proposed';
       }
       
-      // お客様承認 → 入金確認中
       if (updates.approved && purchase.status === 'proposed') {
         newStatus = 'paymentPending';
         updates.approvedDate = new Date().toISOString().substring(0, 10);
       }
       
-      // 入金確認 → 商品到着待ち
       if (updates.paymentConfirmed && purchase.status === 'paymentPending') {
         newStatus = 'awaitingPickup';
       }
       
-      // 商品到着確認 → 完了
       if (updates.pickupConfirmed && purchase.status === 'awaitingPickup') {
         newStatus = 'completed';
         updates.completedDate = new Date().toISOString().substring(0, 10);
@@ -275,12 +256,10 @@ const FurniturePurchaseSystem = () => {
         history: newHistory
       };
 
-      // Firestoreを更新
       if (purchase.firestoreId) {
         await updateDoc(doc(db, 'purchases', purchase.firestoreId), updatedData);
       }
 
-      // ローカルステートを更新
       const updatedPurchases = purchases.map(p => 
         p.id === id ? { ...p, ...updatedData } : p
       );
@@ -316,7 +295,7 @@ const FurniturePurchaseSystem = () => {
     link.click();
   };
 
-  // Google Sheets同期（デモ版）
+  // Google Sheets同期
   const syncFromSheets = async () => {
     if (!sheetsUrl) {
       alert('設定でGoogle SheetsのURLを入力してください');
@@ -325,11 +304,7 @@ const FurniturePurchaseSystem = () => {
 
     setIsLoading(true);
     try {
-      // 本番ではGoogle Sheets APIを使用
       alert('Google Sheets APIと連携します。\n※本実装時にAPIキーを設定して実装します。');
-      // const response = await fetch(sheetsApiUrl);
-      // const data = await response.json();
-      // process and update purchases
     } catch (error) {
       console.error('同期エラー:', error);
       alert('Google Sheetsとの同期に失敗しました');
@@ -338,7 +313,7 @@ const FurniturePurchaseSystem = () => {
     }
   };
 
-  // CSV読み込み（改善版：重複チェック、エラー詳細表示）
+  // CSV読み込み
   const handleCSVUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -360,7 +335,6 @@ const FurniturePurchaseSystem = () => {
         if (!lines[i].trim()) continue;
         
         try {
-          // CSVパース
           const values = [];
           let current = '';
           let inQuotes = false;
@@ -377,13 +351,11 @@ const FurniturePurchaseSystem = () => {
           }
           values.push(current.trim());
 
-          // 必須チェック
           if (!values[0] || !values[2]) {
             errors.push({ row: i + 1, error: 'LINE IDまたは回答日時が空です' });
             continue;
           }
 
-          // 写真URL収集
           const photos = [];
           for (let j = 12; j <= 16; j++) {
             if (values[j] && values[j].startsWith('http')) {
@@ -391,7 +363,6 @@ const FurniturePurchaseSystem = () => {
             }
           }
 
-          // データ変換
           const purchaseData = {
             timestamp: values[2],
             customerName: values[6] || '不明',
@@ -407,14 +378,12 @@ const FurniturePurchaseSystem = () => {
             notes: values[17] || ''
           };
 
-          // 重複チェック
           const existing = purchases.find(p => 
             p.lineUserId === purchaseData.lineUserId && 
             p.timestamp === purchaseData.timestamp
           );
 
           if (existing) {
-            // 更新
             updatedPurchases.push({
               ...existing,
               ...purchaseData,
@@ -429,7 +398,6 @@ const FurniturePurchaseSystem = () => {
             });
             updatedCount++;
           } else {
-            // 新規
             newPurchases.push({
               id: `P${String(purchases.length + newPurchases.length + 1).padStart(4, '0')}`,
               ...purchaseData,
@@ -457,7 +425,6 @@ const FurniturePurchaseSystem = () => {
         }
       }
 
-      // Firestoreに保存
       const savedPurchases = [];
       
       for (const purchase of newPurchases) {
@@ -472,7 +439,6 @@ const FurniturePurchaseSystem = () => {
         savedPurchases.push(purchase);
       }
 
-      // ローカル更新
       const updatedAll = purchases.map(p => {
         const updated = updatedPurchases.find(u => u.id === p.id);
         return updated || p;
@@ -480,7 +446,6 @@ const FurniturePurchaseSystem = () => {
       const allPurchases = [...updatedAll, ...savedPurchases.filter(sp => !purchases.find(p => p.id === sp.id))];
       setPurchases(allPurchases);
       
-      // 結果表示
       let message = `CSV取り込み完了\n\n新規追加: ${addedCount}件\n更新: ${updatedCount}件`;
       if (errors.length > 0) {
         message += `\nエラー: ${errors.length}件\n\n`;
@@ -507,6 +472,18 @@ const FurniturePurchaseSystem = () => {
     return acc;
   }, {});
 
+  // 認証中は何も表示しない（早期リターンは全フックの後）
+  if (authLoading || !user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 flex items-center justify-center">
+        <div className="text-center">
+          <Package className="w-16 h-16 text-amber-600 mx-auto mb-4 animate-pulse" />
+          <p className="text-lg font-semibold text-gray-700">読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50">
       {/* ヘッダー */}
@@ -523,7 +500,6 @@ const FurniturePurchaseSystem = () => {
               </div>
             </div>
             <div className="flex items-center space-x-3">
-              {/* ユーザー情報 */}
               <div className="hidden md:flex items-center space-x-2 bg-white/10 px-4 py-2 rounded-lg backdrop-blur-sm border border-white/20">
                 <User className="w-4 h-4" />
                 <div className="text-sm">
@@ -590,7 +566,6 @@ const FurniturePurchaseSystem = () => {
             </div>
           </div>
 
-          {/* 設定パネル */}
           {showSettings && (
             <div className="mt-4 bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
               <h3 className="text-lg font-semibold mb-4">Google Sheets連携設定</h3>
@@ -621,7 +596,6 @@ const FurniturePurchaseSystem = () => {
         </div>
       </header>
 
-      {/* ステータスサマリー */}
       <div className="container mx-auto px-6 py-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           {Object.entries(STATUSES).map(([key, status]) => (
@@ -643,7 +617,6 @@ const FurniturePurchaseSystem = () => {
           ))}
         </div>
 
-        {/* 検索・フィルター */}
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-8 border-2 border-amber-100">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="relative">
@@ -679,7 +652,6 @@ const FurniturePurchaseSystem = () => {
           </div>
         </div>
 
-        {/* カンバンボード */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {Object.entries(STATUSES).map(([statusKey, status]) => {
             const statusPurchases = filteredPurchases.filter(p => p.status === statusKey);
@@ -749,7 +721,6 @@ const FurniturePurchaseSystem = () => {
         </div>
       </div>
 
-      {/* 詳細モーダル */}
       {selectedPurchase && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -766,7 +737,6 @@ const FurniturePurchaseSystem = () => {
             </div>
 
             <div className="p-6 space-y-6">
-              {/* 基本情報 */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase">依頼ID</label>
@@ -799,7 +769,6 @@ const FurniturePurchaseSystem = () => {
                 </div>
               </div>
 
-              {/* 商品情報 */}
               <div className="bg-amber-50 rounded-2xl p-6 border-2 border-amber-200">
                 <h3 className="text-lg font-bold text-gray-900 mb-4">商品情報</h3>
                 <div className="space-y-3">
@@ -836,7 +805,6 @@ const FurniturePurchaseSystem = () => {
                 </div>
               </div>
 
-              {/* 商品写真 */}
               {selectedPurchase.photos && selectedPurchase.photos.length > 0 && (
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase mb-3 block">
@@ -861,7 +829,6 @@ const FurniturePurchaseSystem = () => {
                 </div>
               )}
 
-              {/* 査定情報 */}
               <div className="bg-blue-50 rounded-2xl p-6 border-2 border-blue-200">
                 <h3 className="text-lg font-bold text-gray-900 mb-4">査定情報</h3>
                 <div className="space-y-4">
@@ -926,7 +893,6 @@ const FurniturePurchaseSystem = () => {
                 </div>
               </div>
 
-              {/* 入金確認 */}
               {(selectedPurchase.status === 'paymentPending' || selectedPurchase.status === 'awaitingPickup' || selectedPurchase.status === 'completed') && (
                 <div className="bg-orange-50 rounded-2xl p-6 border-2 border-orange-200">
                   <h3 className="text-lg font-bold text-gray-900 mb-4">入金確認</h3>
@@ -980,7 +946,6 @@ const FurniturePurchaseSystem = () => {
                 </div>
               )}
 
-              {/* 商品到着確認 */}
               {(selectedPurchase.status === 'awaitingPickup' || selectedPurchase.status === 'completed') && (
                 <div className="bg-cyan-50 rounded-2xl p-6 border-2 border-cyan-200">
                   <h3 className="text-lg font-bold text-gray-900 mb-4">商品到着確認</h3>
@@ -1041,7 +1006,6 @@ const FurniturePurchaseSystem = () => {
                 </div>
               )}
 
-              {/* 履歴 */}
               <div>
                 <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
                   <History className="w-5 h-5 mr-2" />
@@ -1068,7 +1032,6 @@ const FurniturePurchaseSystem = () => {
         </div>
       )}
 
-      {/* ローディング */}
       {isLoading && (
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-8 shadow-2xl">
