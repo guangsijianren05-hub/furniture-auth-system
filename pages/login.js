@@ -11,10 +11,18 @@ export default function LoginPage() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    
+    console.log('🔍 handleLogin called'); // デバッグ1
+    alert('handleLogin が呼ばれました！'); // デバッグ2
+    
     setError('');
     setIsLoading(true);
 
+    console.log('📧 Login attempt:', { email }); // デバッグ3
+
     try {
+      console.log('🌐 Fetching /api/auth/login...'); // デバッグ4
+      
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
@@ -23,24 +31,34 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
 
+      console.log('✅ Response received:', response.status); // デバッグ5
+
       const data = await response.json();
+      console.log('📦 Response data:', data); // デバッグ6
 
       if (!response.ok) {
+        console.log('❌ Login failed'); // デバッグ7
         setError(data.error || 'ログインに失敗しました');
         setIsLoading(false);
         return;
       }
 
-      // ログイン成功 - 強制的にリロードしてからリダイレクト
-      console.log('Login successful:', data);
+      // ログイン成功
+      console.log('🎉 Login successful:', data); // デバッグ8
+      alert('ログイン成功！リダイレクトします'); // デバッグ9
+      
       window.location.href = '/';
       
     } catch (err) {
-      console.error('Login error:', err);
+      console.error('💥 Login error:', err); // デバッグ10
+      alert('エラー: ' + err.message); // デバッグ11
       setError('ログインに失敗しました。もう一度お試しください。');
       setIsLoading(false);
     }
   };
+
+  // ページ読み込み時のデバッグ
+  console.log('📄 LoginPage rendered');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 flex items-center justify-center p-4">
@@ -64,7 +82,7 @@ export default function LoginPage() {
 
         {/* ログインフォーム */}
         <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-gray-200">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">ログイン</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">ログイン（デバッグ版）</h2>
 
           {error && (
             <div className="mb-4 bg-red-50 border-2 border-red-200 rounded-xl p-4">
@@ -137,7 +155,7 @@ export default function LoginPage() {
         {/* フッター */}
         <div className="text-center mt-6 text-sm text-gray-600">
           <p>© 2026 家具買取管理システム</p>
-          <p className="mt-1">Ver 3.0 - カスタム認証版</p>
+          <p className="mt-1">Ver 3.1 - デバッグ版</p>
         </div>
       </div>
     </div>
