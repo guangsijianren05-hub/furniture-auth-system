@@ -31,8 +31,10 @@ export default function LoginPage() {
         return;
       }
 
-      // ログイン成功
-      router.push('/');
+      // ログイン成功 - 強制的にリロードしてからリダイレクト
+      console.log('Login successful:', data);
+      window.location.href = '/';
+      
     } catch (err) {
       console.error('Login error:', err);
       setError('ログインに失敗しました。もう一度お試しください。');
