@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { useAuth } from '../contexts/AuthContext';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Search, Download, Upload, RefreshCw, Plus, X, Calendar, User, Package, Image as ImageIcon, History, Settings, FileText, MapPin, LogOut, CheckCircle } from 'lucide-react';
@@ -23,7 +22,10 @@ const STAFF = ['未割当', '山田', '佐藤', '鈴木', '田中'];
 
 const FurniturePurchaseSystem = () => {
   const router = useRouter();
-  const { user, userRole, loading: authLoading, signOut } = useAuth();
+  // カスタム認証用の状態管理
+  const [user, setUser] = useState(null);
+  const [userRole, setUserRole] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   
   // すべてのフックを最初に配置（早期リターンの前）
   const fileInputRef = useRef(null);
@@ -47,12 +49,37 @@ const FurniturePurchaseSystem = () => {
     }
   }, [user]);
 
-  // 認証チェック
+
+  // カスタム認証: セッションチェック
   useEffect(() => {
-    if (!authLoading && !user) {
+  checkSession();
+  }, []);
+
+  const checkSession = async () => {
+  try {
+    console.log('🔍 Checking session...');
+    const response = await fetch('/api/auth/session');
+    
+    console.log('Session response:', response.status);
+    
+    if (!response.ok) {
+      console.log('❌ No session, redirecting to login');
       router.push('/login');
+      return;
     }
-  }, [user, authLoading, router]);
+
+    const data = await response.json();
+    console.log('✅ Session found:', data.user);
+    
+    setUser(data.user);
+    setUserRole(data.user.role);
+    setAuthLoading(false);
+    
+  } catch (error) {
+    console.error('Session check error:', error);
+    router.push('/login');
+  }
+};
 
   // フィルタリング
   useEffect(() => {
@@ -205,13 +232,18 @@ const FurniturePurchaseSystem = () => {
     }
   };
 
-  // ログアウト処理
-  const handleSignOut = async () => {
-    if (confirm('ログアウトしますか？')) {
-      await signOut();
+// ログアウト処理（カスタム認証版）
+const handleSignOut = async () => {
+  if (confirm('ログアウトしますか？')) {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      router.push('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
       router.push('/login');
     }
-  };
+  }
+};
 
   // トースト通知を表示
   const showToast = (message, type = 'success') => {
@@ -635,7 +667,7 @@ const FurniturePurchaseSystem = () => {
                 <User className="w-4 h-4" />
                 <div className="text-sm">
                   <p className="font-medium whitespace-nowrap">
-                    {user?.displayName || user?.email?.split('@')[0]}様
+                    {user?.name || user?.email?.split('@')[0]}様
                   </p>
                   <p className="text-xs text-amber-200 whitespace-nowrap">
                     {userRole === 'master' ? 'マスター' : 
@@ -728,11 +760,10 @@ const FurniturePurchaseSystem = () => {
                   />
                 </div>
                 <button
-                  onClick={async () => {
-                    await window.storage.set('sheets-url', sheetsUrl);
-                    alert('設定を保存しました');
-                    setShowSettings(false);
-                  }}
+                  onClick={() => {
+                  alert('設定を保存しました');
+                  setShowSettings(false);
+                }}
                   className="bg-white text-amber-900 px-6 py-2 rounded-lg font-semibold hover:bg-amber-100 transition-colors"
                 >
                   保存
